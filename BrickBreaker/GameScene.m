@@ -9,36 +9,42 @@
 #import "GameScene.h"
 
 @implementation GameScene
+{
+    SKSpriteNode *_paddle;
+    CGPoint _touchLocation;
+}
 
 -(void)didMoveToView:(SKView *)view {
     /* Setup your scene here */
-    SKLabelNode *myLabel = [SKLabelNode labelNodeWithFontNamed:@"Chalkduster"];
     
-    myLabel.text = @"Hello, World!";
-    myLabel.fontSize = 45;
-    myLabel.position = CGPointMake(CGRectGetMidX(self.frame),
-                                   CGRectGetMidY(self.frame));
+    self.backgroundColor = [SKColor colorWithRed: 0.15 green: 0.15 blue: 0.3 alpha: 1.0];
     
-    [self addChild:myLabel];
+    _paddle = [SKSpriteNode spriteNodeWithImageNamed:@"PaddleBlue"];
+    _paddle.position = CGPointMake(self.size.width *0.5, 90);
+    [self addChild:_paddle];
+
 }
 
 -(void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
     /* Called when a touch begins */
     
     for (UITouch *touch in touches) {
-        CGPoint location = [touch locationInNode:self];
+        _touchLocation = [touch locationInNode:self];
+    }
+}
+
+-(void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    
+    for(UITouch *touch in touches) {
+        // Calculate how far touch has moved on x axis.
+        CGFloat xMovement = [touch locationInNode:self].x - _touchLocation.x;
+        // Move paddle distance of touch
+        _paddle.position = CGPointMake(_paddle.position.x + xMovement, _paddle.position.y);
         
-        SKSpriteNode *sprite = [SKSpriteNode spriteNodeWithImageNamed:@"Spaceship"];
+        //Limit Paddle movement
         
-        sprite.xScale = 0.5;
-        sprite.yScale = 0.5;
-        sprite.position = location;
+        _touchLocation = [touch locationInNode:self];
         
-        SKAction *action = [SKAction rotateByAngle:M_PI duration:1];
-        
-        [sprite runAction:[SKAction repeatActionForever:action]];
-        
-        [self addChild:sprite];
     }
 }
 
