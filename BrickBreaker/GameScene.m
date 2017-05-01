@@ -19,6 +19,8 @@
     SKNode *_brickLayer;
     BOOL _ballReleased;
     BOOL _positionBall;
+    NSArray *_hearts;
+    SKLabelNode *_levelDisplay;
 }
 
 -(void)didMoveToView:(SKView *)view {
@@ -28,14 +30,35 @@
 -(void)setupScene {
     /* Setup your scene here */
     
+    // Set initial values.
+    _ballSpeed = 250.0;
+    self.currentLevel = 0;
+    self.lives = 2;
+    
     self.backgroundColor = [SKColor colorWithRed: 0.15 green: 0.15 blue: 0.3 alpha: 1.0];
     
     //Turn off gravity.
     self.physicsWorld.gravity = CGVectorMake(0.0, 0.0);
     
     //Setup Edge
-    self.physicsBody = [SKPhysicsBody bodyWithEdgeLoopFromRect:self.frame];
+    self.physicsBody = [SKPhysicsBody bodyWithEdgeLoopFromRect:CGRectMake(0, -128, self.size.width, self.size.height + 100)];
+    self.physicsBody.categoryBitMask = EDGE_CATEGORY;
     
+    // Add HUD bar.
+    SKSpriteNode *bar = [SKSpriteNode spriteNodeWithColor:[SKColor colorWithRed:0.831 green:0.831 blue:0.831 alpha:1.0] size:CGSizeMake(self.size.width, 28)];
+    bar.position = CGPointMake(0, self.size.height);
+    bar.anchorPoint = CGPointMake(0, 1);
+    [self addChild:bar];
+    
+    // Setup level display.
+    _levelDisplay = [SKLabelNode labelNodeWithFontNamed:@"Futura"];
+    _levelDisplay.text = [NSString stringWithFormat:@"LEVEL %d", self.currentLevel];
+    _levelDisplay.fontColor = [SKColor grayColor];
+    _levelDisplay.fontSize = 15;
+    _levelDisplay.horizontalAlignmentMode = SKLabelHorizontalAlignmentModeLeft;
+    _levelDisplay.verticalAlignmentMode = SKLabelVerticalAlignmentModeTop;
+    _levelDisplay.position = CGPointMake(10, -10);
+    [bar addChild:_levelDisplay];
     
     // Set contact delegate;
     self.physicsWorld.contactDelegate = self;
@@ -43,9 +66,19 @@
     
     // Setup brick layer.
     _brickLayer = [SKNode node];
-    _brickLayer.position = CGPointMake(0, self.size.height - 20);
+    _brickLayer.position = CGPointMake(0, self.size.height - 28);
     _brickLayer.zPosition = 2;
     [self addChild:_brickLayer];
+    
+    // Setup hearts. 26x22
+    _hearts = @[[SKSpriteNode spriteNodeWithImageNamed:@"HeartFull"],
+                [SKSpriteNode spriteNodeWithImageNamed:@"HeartFull"]];
+    
+    for (NSUInteger i = 0; i < _hearts.count; i++) {
+        SKSpriteNode *heart = (SKSpriteNode*)[_hearts objectAtIndex:i];
+        heart.position = CGPointMake(self.size.width - (16 + (29 * i)), self.size.height - 14);
+        [self addChild:heart];
+    }
 
     
     _paddle = [SKSpriteNode spriteNodeWithImageNamed:@"PaddleBlue"];
@@ -56,14 +89,30 @@
     _paddle.zPosition = 1;
     [self addChild:_paddle];
     
-    // Set initial values.
-    _ballSpeed = 250.0;
-    _currentLevel = 0;
     
     // Load Level
-    [self loadLevel:_currentLevel];
+    [self loadLevel: self.currentLevel];
     
     [self newBall];
+}
+
+-(void)setLives:(int)lives
+{
+    _lives = lives;
+    for (NSUInteger i = 0; i < _hearts.count; i++) {
+        SKSpriteNode *heart = (SKSpriteNode*)[_hearts objectAtIndex:i];
+        if (lives > i) {
+            heart.texture = [SKTexture textureWithImageNamed:@"HeartFull"];
+        } else {
+            heart.texture = [SKTexture textureWithImageNamed:@"HeartEmpty"];
+        }
+    }
+}
+
+-(void)setCurrentLevel:(int)currentLevel
+{
+    _currentLevel = currentLevel;
+    _levelDisplay.text = [NSString stringWithFormat:@"LEVEL %d", currentLevel];
 }
 
 
@@ -258,13 +307,38 @@
     }
 }
 
+-(void)didSimulatePhysics {
+    [self enumerateChildNodesWithName:@"ball" usingBlock:^(SKNode *node, BOOL *stop) {
+        if (node.frame.origin.y + node.frame.size.height < 0) {
+            // Lost ball.
+            [node removeFromParent];
+        }
+    }];
+    
+}
+
 -(void)update:(CFTimeInterval)currentTime {
     /* Called before each frame is rendered */
     
     if ([self isLevelComplete]) {
         self.currentLevel++;
+        if (self.currentLevel > FINAL_LEVEL_NUMBER) {
+            self.currentLevel = 1;
+            self.lives = 2;
+        }
         [self loadLevel:self.currentLevel];
         [self newBall];
+    } else if (_ballReleased && !_positionBall && ![self childNodeWithName:@"ball"]){
+        // Lost all balls.
+        self.lives--;
+        if (self.lives <= 0) {
+            // Game over.
+            self.lives = 2;
+            self.currentLevel = 1;
+            [self loadLevel:self.currentLevel];
+        }
+        [self newBall];
+        
     }
 }
 

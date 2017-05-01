@@ -52,6 +52,7 @@
 {
     switch (self.type) {
         case Green:
+            [self createExplosion];
             [self runAction:[SKAction removeFromParent]];
             break;
         case Yellow:
@@ -67,6 +68,19 @@
              // Grey bricks are indestructible.
             break;
     }
+}
+
+-(void)createExplosion
+{
+    NSString *path = [[NSBundle mainBundle] pathForResource:@"BrickExplosion" ofType:@"sks"];
+    SKEmitterNode *explosion = [NSKeyedUnarchiver unarchiveObjectWithFile:path];
+    explosion.position = self.position;
+    [self.parent addChild:explosion];
+    
+    SKAction *removeExplosion = [SKAction sequence:@[[SKAction waitForDuration:explosion.particleLifetime + explosion.particleLifetimeRange],
+        [SKAction removeFromParent]]];
+    
+    [explosion runAction:removeExplosion];
 }
 
 @end
