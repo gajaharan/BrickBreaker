@@ -6,6 +6,7 @@
 //  Copyright (c) 2017 Gajaharan Satkunanandan. All rights reserved.
 //
 
+#import "Brick.h"
 #import "GameScene.h"
 
 @implementation GameScene
@@ -15,11 +16,6 @@
     CGFloat _ballSpeed;
     SKNode *_brickLayer;
 }
-
-static const uint32_t BALL_CATEGORY   = 0x1 << 0;
-static const uint32_t PADDLE_CATEGORY = 0x1 << 1;
-static const uint32_t EDGE_CATEGORY   = 0x1 << 2;
-static const uint32_t BRICK_CATEGORY  = 0x1 << 3;
 
 -(void)didMoveToView:(SKView *)view {
     [self setupScene];
@@ -52,7 +48,13 @@ static const uint32_t BRICK_CATEGORY  = 0x1 << 3;
     //Add some brinks
     for(int row=0; row<5; row++) {
         for(int col=0; col<9; col++) {
-            SKSpriteNode *brick = [SKSpriteNode spriteNodeWithImageNamed:@"BrickGreen"];
+            Brick *brick;
+            if (row == 4) {
+                brick = [[Brick alloc] initWithType:Blue];
+            } else {
+                brick = [[Brick alloc] initWithType:Green];
+            }
+            
             brick.position = CGPointMake(2 + (brick.size.width * 0.5) + ((brick.size.width + 3) * col)
                                          , -(2 + (brick.size.height * 0.5) + ((brick.size.height + 3) * row)));
             
@@ -111,7 +113,9 @@ static const uint32_t BRICK_CATEGORY  = 0x1 << 3;
     }
     
     if (firstBody.categoryBitMask == BALL_CATEGORY && secondBody.categoryBitMask == BRICK_CATEGORY) {
-        [secondBody.node runAction:[SKAction removeFromParent]];
+        if ([secondBody.node respondsToSelector:@selector(hit)]) {
+            [secondBody.node performSelector:@selector(hit)];
+        }
     }
     
     if (firstBody.categoryBitMask == BALL_CATEGORY && secondBody.categoryBitMask == PADDLE_CATEGORY) {
