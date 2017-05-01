@@ -13,11 +13,13 @@
     SKSpriteNode *_paddle;
     CGPoint _touchLocation;
     CGFloat _ballSpeed;
+    SKNode *_brickLayer;
 }
 
 static const uint32_t BALL_CATEGORY   = 0x1 << 0;
 static const uint32_t PADDLE_CATEGORY = 0x1 << 1;
 static const uint32_t EDGE_CATEGORY   = 0x1 << 2;
+static const uint32_t BRICK_CATEGORY  = 0x1 << 3;
 
 -(void)didMoveToView:(SKView *)view {
     [self setupScene];
@@ -36,23 +38,31 @@ static const uint32_t EDGE_CATEGORY   = 0x1 << 2;
     //Setup Edge
     self.physicsBody = [SKPhysicsBody bodyWithEdgeLoopFromRect:self.frame];
     
-    SKNode *leftEdge = [[SKNode alloc]init];
-    leftEdge.physicsBody = [SKPhysicsBody bodyWithEdgeFromPoint:CGPointZero toPoint:CGPointMake(0.0, self.size.height + 100)];
-    leftEdge.position = CGPointZero;
-    leftEdge.physicsBody.categoryBitMask = EDGE_CATEGORY;
-    leftEdge.zPosition = 2;
-    [self addChild:leftEdge];
-    
-    SKNode *rightEdge = [[SKNode alloc]init];
-    rightEdge.physicsBody = [SKPhysicsBody bodyWithEdgeFromPoint:CGPointZero toPoint:CGPointMake(0.0, self.size.height + 100)];
-    rightEdge.position = CGPointMake(self.size.width, 0.0);
-    rightEdge.physicsBody.categoryBitMask = EDGE_CATEGORY;
-    leftEdge.zPosition = 2;
-    [self addChild:rightEdge];
     
     // Set contact delegate;
     self.physicsWorld.contactDelegate = self;
     //self.physicsBody.categoryBitMask = wallCategory;
+    
+    // Setup brick layer.
+    _brickLayer = [SKNode node];
+    _brickLayer.position = CGPointMake(0, self.size.height - 20);
+    _brickLayer.zPosition = 2;
+    [self addChild:_brickLayer];
+    
+    //Add some brinks
+    for(int row=0; row<5; row++) {
+        for(int col=0; col<9; col++) {
+            SKSpriteNode *brick = [SKSpriteNode spriteNodeWithImageNamed:@"BrickGreen"];
+            brick.position = CGPointMake(2 + (brick.size.width * 0.5) + ((brick.size.width + 3) * col)
+                                         , -(2 + (brick.size.height * 0.5) + ((brick.size.height + 3) * row)));
+            
+            brick.physicsBody = [SKPhysicsBody bodyWithRectangleOfSize:brick.size];
+            brick.physicsBody.categoryBitMask = BRICK_CATEGORY;
+            brick.physicsBody.dynamic = NO;
+
+            [_brickLayer addChild:brick];
+        }
+    }
     
     
     _paddle = [SKSpriteNode spriteNodeWithImageNamed:@"PaddleBlue"];
@@ -78,8 +88,7 @@ static const uint32_t EDGE_CATEGORY   = 0x1 << 2;
     ball.physicsBody.angularDamping = 0.0;
     ball.physicsBody.velocity = velocity;
     ball.physicsBody.categoryBitMask = BALL_CATEGORY;
-    ball.physicsBody.collisionBitMask = EDGE_CATEGORY;
-    ball.physicsBody.contactTestBitMask = EDGE_CATEGORY | PADDLE_CATEGORY;
+    ball.physicsBody.contactTestBitMask = PADDLE_CATEGORY | BRICK_CATEGORY;
     ball.zPosition = 1;
     [self addChild:ball];
     
@@ -99,6 +108,10 @@ static const uint32_t EDGE_CATEGORY   = 0x1 << 2;
     } else {
         firstBody = contact.bodyA;
         secondBody = contact.bodyB;
+    }
+    
+    if (firstBody.categoryBitMask == BALL_CATEGORY && secondBody.categoryBitMask == BRICK_CATEGORY) {
+        [secondBody.node runAction:[SKAction removeFromParent]];
     }
     
     if (firstBody.categoryBitMask == BALL_CATEGORY && secondBody.categoryBitMask == PADDLE_CATEGORY) {
