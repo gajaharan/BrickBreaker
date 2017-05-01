@@ -11,6 +11,10 @@
 typedef enum : NSUInteger {
     Green = 1,
     Blue = 2,
+    Grey = 3,
+    Yellow = 4,
+    Purple = 5,
+    Red = 6
 } BrickType;
 
 static const uint32_t BRICK_CATEGORY  = 0x1 << 3;
@@ -18,6 +22,7 @@ static const uint32_t BRICK_CATEGORY  = 0x1 << 3;
 @interface Brick : SKSpriteNode
 
 @property (nonatomic) BrickType type;
+@property (nonatomic) BOOL indestructible;
 
 -(instancetype)initWithType:(BrickType)type;
 -(void)hit;

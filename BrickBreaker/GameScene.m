@@ -9,12 +9,16 @@
 #import "Brick.h"
 #import "GameScene.h"
 
+
+
 @implementation GameScene
 {
     SKSpriteNode *_paddle;
     CGPoint _touchLocation;
     CGFloat _ballSpeed;
     SKNode *_brickLayer;
+    BOOL _ballReleased;
+    BOOL _positionBall;
 }
 
 -(void)didMoveToView:(SKView *)view {
@@ -29,8 +33,6 @@
     //Turn off gravity.
     self.physicsWorld.gravity = CGVectorMake(0.0, 0.0);
     
-    [self createBallWithLocation:CGPointMake(self.size.width * 0.5, self.size.height * 0.5) andVelocity:CGVectorMake(30, 200)];
-    
     //Setup Edge
     self.physicsBody = [SKPhysicsBody bodyWithEdgeLoopFromRect:self.frame];
     
@@ -44,28 +46,7 @@
     _brickLayer.position = CGPointMake(0, self.size.height - 20);
     _brickLayer.zPosition = 2;
     [self addChild:_brickLayer];
-    
-    //Add some brinks
-    for(int row=0; row<5; row++) {
-        for(int col=0; col<9; col++) {
-            Brick *brick;
-            if (row == 4) {
-                brick = [[Brick alloc] initWithType:Blue];
-            } else {
-                brick = [[Brick alloc] initWithType:Green];
-            }
-            
-            brick.position = CGPointMake(2 + (brick.size.width * 0.5) + ((brick.size.width + 3) * col)
-                                         , -(2 + (brick.size.height * 0.5) + ((brick.size.height + 3) * row)));
-            
-            brick.physicsBody = [SKPhysicsBody bodyWithRectangleOfSize:brick.size];
-            brick.physicsBody.categoryBitMask = BRICK_CATEGORY;
-            brick.physicsBody.dynamic = NO;
 
-            [_brickLayer addChild:brick];
-        }
-    }
-    
     
     _paddle = [SKSpriteNode spriteNodeWithImageNamed:@"PaddleBlue"];
     _paddle.position = CGPointMake(self.size.width *0.5, 90);
@@ -77,6 +58,29 @@
     
     // Set initial values.
     _ballSpeed = 250.0;
+    _currentLevel = 0;
+    
+    // Load Level
+    [self loadLevel:_currentLevel];
+    
+    [self newBall];
+}
+
+
+-(void)newBall
+{
+    // Remove all bricks including indestruble grey bricks
+    [self enumerateChildNodesWithName:@"ball" usingBlock:^(SKNode *node, BOOL *stop) {
+        [node removeFromParent];
+    }];
+    
+    // Create positioning ball.
+    SKSpriteNode *ball = [SKSpriteNode spriteNodeWithImageNamed:@"BallBlue"];
+    ball.position = CGPointMake(self.size.width *0.25, _paddle.size.height*0.5);
+    [_paddle addChild:ball];
+    _ballReleased = NO;
+    //Reset paddle position
+    _paddle.position = CGPointMake(self.size.width * 0.5, _paddle.position.y);
 }
 
 -(SKSpriteNode*)createBallWithLocation:(CGPoint)position andVelocity:(CGVector)velocity {
@@ -98,6 +102,73 @@
     //[ball.physicsBody applyImpulse:impulse];
     
     return ball;
+}
+
+-(void)loadLevel:(int)levelNumber
+{
+    [_brickLayer removeAllChildren];
+    
+    NSArray *level = nil;
+    
+    switch (levelNumber) {
+        case 0:
+            level = @[@[@0,@0,@0,@0,@1,@0,@0,@0,@0],
+                      @[@0,@0,@0,@0,@0,@0,@0,@0,@0],
+                      @[@0,@0,@0,@0,@0,@0,@0,@0,@0],
+                      @[@0,@0,@0,@0,@0,@0,@0,@0,@0],
+                      @[@0,@0,@0,@0,@0,@0,@0,@0,@0]];
+            break;
+        case 1:
+            level = @[@[@1,@1,@1,@1,@1,@1,@1,@1,@1],
+                      @[@0,@1,@1,@1,@1,@1,@1,@1,@0],
+                      @[@0,@0,@0,@0,@0,@0,@0,@0,@0],
+                      @[@0,@0,@0,@0,@0,@0,@0,@0,@0],
+                      @[@0,@2,@2,@2,@2,@2,@2,@2,@0]];
+            break;
+            
+        case 2:
+            level = @[@[@4,@1,@2,@2,@2,@2,@2,@1,@4],
+                      @[@2,@2,@0,@0,@0,@0,@0,@2,@2],
+                      @[@2,@0,@0,@0,@0,@0,@0,@0,@2],
+                      @[@0,@0,@1,@1,@1,@1,@1,@0,@0],
+                      @[@1,@0,@1,@1,@1,@1,@1,@0,@1],
+                      @[@1,@1,@3,@3,@3,@3,@3,@1,@1]];
+            break;
+            
+        case 3:
+            level = @[@[@1,@0,@1,@1,@0,@1],
+                      @[@1,@0,@1,@1,@0,@1],
+                      @[@0,@0,@3,@3,@0,@0],
+                      @[@2,@0,@0,@0,@0,@2],
+                      @[@0,@0,@1,@1,@0,@0],
+                      @[@3,@2,@1,@1,@2,@3]];
+            break;
+            
+        default:
+            break;
+    }
+    
+    //Add some brinks
+    int row = 0;
+    int col = 0;
+    for (NSArray *rowBricks in level) {
+        col = 0;
+        
+        for (NSNumber *brickType in rowBricks) {
+            if ([brickType intValue] > 0) {
+                Brick *brick = [[Brick alloc] initWithType:(BrickType)[brickType intValue]];
+                if (brick) {
+                    brick.position = CGPointMake(2 + (brick.size.width * 0.5) + ((brick.size.width + 3) * col)
+                                                 , -(2 + (brick.size.height * 0.5) + ((brick.size.height + 3) * row)));
+                    
+                    NSLog(@"add");
+                    [_brickLayer addChild:brick];
+                }
+            }
+            col++;
+        }
+        row++;
+    }
 }
 
 -(void)didBeginContact:(SKPhysicsContact *)contact {
@@ -138,10 +209,27 @@
     
 }
 
+-(void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event {
+
+        if (_positionBall) {
+            _positionBall = NO;
+            _ballReleased = YES;
+            [_paddle removeAllChildren];
+            [self createBallWithLocation:CGPointMake(_paddle.position.x, _paddle.position.y + _paddle.size.height) andVelocity:CGVectorMake(0, _ballSpeed)];
+        }
+    
+}
+
+
 -(void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
     /* Called when a touch begins */
     
     for (UITouch *touch in touches) {
+        
+        if (!_ballReleased) {
+            _positionBall = YES;
+        }
+        
         _touchLocation = [touch locationInNode:self];
     }
 }
@@ -172,6 +260,26 @@
 
 -(void)update:(CFTimeInterval)currentTime {
     /* Called before each frame is rendered */
+    
+    if ([self isLevelComplete]) {
+        self.currentLevel++;
+        [self loadLevel:self.currentLevel];
+        [self newBall];
+    }
+}
+
+-(BOOL)isLevelComplete
+{
+    // Look for remaining bricks that are not indestrucitble.
+    for (SKNode *node in _brickLayer.children) {
+        if ([node isKindOfClass:[Brick class]]) {
+            if (!((Brick*)node).indestructible) {
+                return NO;
+            }
+        }
+    }
+    // Couldn't find any non-indestructible bricks
+    return YES;
 }
 
 @end
