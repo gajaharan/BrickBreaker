@@ -7,6 +7,7 @@
 //
 
 #import "Brick.h"
+#import "GameMenu.h"
 #import "GameScene.h"
 
 
@@ -21,6 +22,12 @@
     BOOL _positionBall;
     NSArray *_hearts;
     SKLabelNode *_levelDisplay;
+    GameMenu *_menu;
+    SKAction *_ballBounceSound;
+    SKAction *_paddleBounceSound;
+    SKAction *_levelUpSound;
+    SKAction *_loseLifeSound;
+    
 }
 
 -(void)didMoveToView:(SKView *)view {
@@ -32,10 +39,10 @@
     
     // Set initial values.
     _ballSpeed = 250.0;
-    self.currentLevel = 0;
+    self.currentLevel = 1;
     self.lives = 2;
     
-    self.backgroundColor = [SKColor colorWithRed: 0.15 green: 0.15 blue: 0.3 alpha: 1.0];
+    self.backgroundColor = [SKColor whiteColor];
     
     //Turn off gravity.
     self.physicsWorld.gravity = CGVectorMake(0.0, 0.0);
@@ -67,7 +74,7 @@
     // Setup brick layer.
     _brickLayer = [SKNode node];
     _brickLayer.position = CGPointMake(0, self.size.height - 28);
-    _brickLayer.zPosition = 2;
+    //_brickLayer.zPosition = 2;
     [self addChild:_brickLayer];
     
     // Setup hearts. 26x22
@@ -86,9 +93,19 @@
     _paddle.physicsBody = [SKPhysicsBody bodyWithRectangleOfSize:_paddle.size];
     _paddle.physicsBody.dynamic = NO;
     _paddle.physicsBody.categoryBitMask = PADDLE_CATEGORY;
-    _paddle.zPosition = 1;
+    //_paddle.zPosition = 1;
     [self addChild:_paddle];
     
+    // Setup menu.
+    _menu = [[GameMenu alloc] init];
+    _menu.position = CGPointMake(self.size.width * 0.5, self.size.height * 0.5);
+    [self addChild:_menu];
+    
+    // Setup sounds.
+    _ballBounceSound = [SKAction playSoundFileNamed:@"BallBounce.caf" waitForCompletion:NO];
+    _paddleBounceSound = [SKAction playSoundFileNamed:@"PaddleBounce.caf" waitForCompletion:NO];
+    _levelUpSound = [SKAction playSoundFileNamed:@"LevelUp.caf" waitForCompletion:NO];
+    _loseLifeSound = [SKAction playSoundFileNamed:@"LoseLife.caf" waitForCompletion:NO];
     
     // Load Level
     [self loadLevel: self.currentLevel];
@@ -113,6 +130,7 @@
 {
     _currentLevel = currentLevel;
     _levelDisplay.text = [NSString stringWithFormat:@"LEVEL %d", currentLevel];
+    _menu.levelNumber = currentLevel;
 }
 
 
@@ -125,9 +143,10 @@
     
     // Create positioning ball.
     SKSpriteNode *ball = [SKSpriteNode spriteNodeWithImageNamed:@"BallBlue"];
-    ball.position = CGPointMake(self.size.width *0.25, _paddle.size.height*0.5);
+    ball.position = CGPointMake(0, _paddle.size.height);
     [_paddle addChild:ball];
     _ballReleased = NO;
+    
     //Reset paddle position
     _paddle.position = CGPointMake(self.size.width * 0.5, _paddle.position.y);
 }
@@ -143,14 +162,24 @@
     ball.physicsBody.angularDamping = 0.0;
     ball.physicsBody.velocity = velocity;
     ball.physicsBody.categoryBitMask = BALL_CATEGORY;
-    ball.physicsBody.contactTestBitMask = PADDLE_CATEGORY | BRICK_CATEGORY;
-    ball.zPosition = 1;
+    ball.physicsBody.contactTestBitMask = PADDLE_CATEGORY | BRICK_CATEGORY | EDGE_CATEGORY;
+    ball.physicsBody.collisionBitMask = PADDLE_CATEGORY | BRICK_CATEGORY | EDGE_CATEGORY;
+    //ball.zPosition = 1;
     [self addChild:ball];
-    
-    //CGVector impulse = CGVectorMake(100.0,100.0);
-    //[ball.physicsBody applyImpulse:impulse];
-    
+
     return ball;
+}
+
+-(void)spawnExtraBall:(CGPoint)position
+{
+    CGVector direction;
+    if (arc4random_uniform(2) == 0) {
+        direction = CGVectorMake(cosf(M_PI_4), sinf(M_PI_4));
+    } else {
+        direction = CGVectorMake(cosf(M_PI * 0.75), sinf(M_PI * 0.75));
+    }
+    
+    [self createBallWithLocation:position andVelocity:CGVectorMake(direction.dx * _ballSpeed, direction.dy * _ballSpeed)];
 }
 
 -(void)loadLevel:(int)levelNumber
@@ -168,7 +197,7 @@
                       @[@0,@0,@0,@0,@0,@0,@0,@0,@0]];
             break;
         case 1:
-            level = @[@[@1,@1,@1,@1,@1,@1,@1,@1,@1],
+            level = @[@[@1,@1,@1,@1,@1,@1,@1,@1,@4],
                       @[@0,@1,@1,@1,@1,@1,@1,@1,@0],
                       @[@0,@0,@0,@0,@0,@0,@0,@0,@0],
                       @[@0,@0,@0,@0,@0,@0,@0,@0,@0],
@@ -232,14 +261,22 @@
         secondBody = contact.bodyB;
     }
     
+    if (firstBody.categoryBitMask == BALL_CATEGORY && secondBody.categoryBitMask == EDGE_CATEGORY) {
+        [self runAction:_ballBounceSound];
+    }
+    
     if (firstBody.categoryBitMask == BALL_CATEGORY && secondBody.categoryBitMask == BRICK_CATEGORY) {
         if ([secondBody.node respondsToSelector:@selector(hit)]) {
             [secondBody.node performSelector:@selector(hit)];
+            if (((Brick*)secondBody.node).spawnsExtraBall) {
+                [self spawnExtraBall:[_brickLayer convertPoint:secondBody.node.position toNode:self]];
+            }
         }
+        [self runAction:_ballBounceSound];
     }
     
     if (firstBody.categoryBitMask == BALL_CATEGORY && secondBody.categoryBitMask == PADDLE_CATEGORY) {
-        if (firstBody.node.position.y > secondBody.node.position.y) { // Fix anti-gravity ball
+        if (firstBody.node.position.y > secondBody.node.position.y) {
             // Get contact point in paddle coordinates.
             CGPoint pointInPaddle = [secondBody.node convertPoint:contact.contactPoint fromNode:self];
             // Get contact position as a percentage of the paddle's width.
@@ -253,19 +290,26 @@
             // Set ball's velocity based on direction and speed.
             firstBody.velocity = CGVectorMake(direction.dx * _ballSpeed, direction.dy * _ballSpeed);
         }
-        
+        [self runAction:_paddleBounceSound];
     }
     
 }
 
 -(void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event {
-
+    if (_menu.hidden) {
         if (_positionBall) {
             _positionBall = NO;
             _ballReleased = YES;
             [_paddle removeAllChildren];
             [self createBallWithLocation:CGPointMake(_paddle.position.x, _paddle.position.y + _paddle.size.height) andVelocity:CGVectorMake(0, _ballSpeed)];
         }
+    } else {
+        for (UITouch *touch in touches) {
+            if ([[_menu nodeAtPoint:[touch locationInNode:_menu]].name isEqualToString:@"Play Button"]) {
+                [_menu hide];
+            }
+        }
+    }
     
 }
 
@@ -274,9 +318,10 @@
     /* Called when a touch begins */
     
     for (UITouch *touch in touches) {
-        
-        if (!_ballReleased) {
-            _positionBall = YES;
+        if (_menu.hidden) {
+            if (!_ballReleased) {
+                _positionBall = YES;
+            }
         }
         
         _touchLocation = [touch locationInNode:self];
@@ -284,27 +329,34 @@
 }
 
 -(void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    
-    for(UITouch *touch in touches) {
-        // Calculate how far touch has moved on x axis.
-        CGFloat xMovement = [touch locationInNode:self].x - _touchLocation.x;
-        // Move paddle distance of touch
-        _paddle.position = CGPointMake(_paddle.position.x + xMovement, _paddle.position.y);
-        
-        //Cap paddle position so it remains on screen
-        CGFloat paddleMinX = -_paddle.size.width * 0.25;
-        CGFloat paddleMaxX = self.size.width + (_paddle.size.width * 0.25);
-        
-        if(_paddle.position.x < paddleMinX) {
-            _paddle.position = CGPointMake(paddleMinX, _paddle.position.y);
+    if (_menu.hidden) {
+        for(UITouch *touch in touches) {
+            // Calculate how far touch has moved on x axis.
+            CGFloat xMovement = [touch locationInNode:self].x - _touchLocation.x;
+            // Move paddle distance of touch
+            _paddle.position = CGPointMake(_paddle.position.x + xMovement, _paddle.position.y);
+            
+            //Cap paddle position so it remains on screen
+            CGFloat paddleMinX = -_paddle.size.width * 0.25;
+            CGFloat paddleMaxX = self.size.width + (_paddle.size.width * 0.25);
+            
+            if (_positionBall) {
+                paddleMinX = _paddle.size.width * 0.5;
+                paddleMaxX = self.size.width - (_paddle.size.width * 0.5);
+            }
+            
+            if(_paddle.position.x < paddleMinX) {
+                _paddle.position = CGPointMake(paddleMinX, _paddle.position.y);
+            }
+            if(_paddle.position.x > paddleMaxX) {
+                _paddle.position = CGPointMake(paddleMaxX, _paddle.position.y);
+            }
+            
+            _touchLocation = [touch locationInNode:self];
+            
         }
-        if(_paddle.position.x > paddleMaxX) {
-            _paddle.position = CGPointMake(paddleMaxX, _paddle.position.y);
-        }
-        
-        _touchLocation = [touch locationInNode:self];
-        
     }
+
 }
 
 -(void)didSimulatePhysics {
@@ -328,6 +380,8 @@
         }
         [self loadLevel:self.currentLevel];
         [self newBall];
+        [_menu show];
+        [self runAction:_levelUpSound];
     } else if (_ballReleased && !_positionBall && ![self childNodeWithName:@"ball"]){
         // Lost all balls.
         self.lives--;
@@ -336,8 +390,10 @@
             self.lives = 2;
             self.currentLevel = 1;
             [self loadLevel:self.currentLevel];
+            [_menu show];
         }
         [self newBall];
+        [self runAction:_loseLifeSound];
         
     }
 }

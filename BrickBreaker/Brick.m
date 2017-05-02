@@ -9,6 +9,9 @@
 #import "Brick.h"
 
 @implementation Brick
+{
+    SKAction *_brickSmashSound;
+}
 
 -(instancetype)initWithType:(BrickType)type
 {
@@ -43,6 +46,9 @@
         self.physicsBody.dynamic = NO;
         self.type = type;
         self.indestructible = (type == Grey);
+        self.spawnsExtraBall = (type == Yellow);        
+        
+        _brickSmashSound = [SKAction playSoundFileNamed:@"BrickSmash.caf" waitForCompletion:NO];
     }
     
     return self;
@@ -53,12 +59,15 @@
     switch (self.type) {
         case Green:
             [self createExplosion];
+            [self runAction:_brickSmashSound];
             [self runAction:[SKAction removeFromParent]];
             break;
         case Yellow:
+            [self createExplosion];
+            [self runAction:_brickSmashSound];
             [self runAction:[SKAction removeFromParent]];
-            self.texture = [SKTexture textureWithImageNamed:@"BrickBlue"];
-            self.type = Blue;
+            //self.texture = [SKTexture textureWithImageNamed:@"BrickBlue"];
+            //self.type = Blue;
             break;
         case Blue:
             self.texture = [SKTexture textureWithImageNamed:@"BrickGreen"];
